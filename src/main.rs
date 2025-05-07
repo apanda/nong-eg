@@ -1,7 +1,8 @@
 use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt}; // for read_to_end()
+use tokio::task::JoinSet;
 
-async fn read_len(fs: &[&str]) -> io::Result<Vec<usize>> {
+async fn read_len(tag: String, fs: &[&str]) -> io::Result<(String, Vec<usize>)> {
     let mut v = vec![];
     for f in fs {
         v.push(
@@ -17,14 +18,20 @@ async fn read_len(fs: &[&str]) -> io::Result<Vec<usize>> {
             .await?,
         )
     }
-    Ok(v)
+    Ok((tag, v))
 }
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let x = read_len(&["Cargo.toml", "Cargo.lock"]).await?;
-    for l in x {
-        println!("Len {}", l);
+    let mut j = JoinSet::new();
+    j.spawn(read_len("a".into(), &["Cargo.toml", "Cargo.lock"]));
+    j.spawn(read_len("b".into(), &["hello.txt", "bye.txt"]));
+    let out = j.join_all().await;
+    for r in out {
+        let (tag, x) = r.unwrap();
+        for l in x {
+            println!("{} Len {}", tag, l);
+        }
     }
     Ok(())
 }
